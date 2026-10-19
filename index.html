@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loan Calculator</title>
+<meta name="description" content="Free single-page loan calculator: monthly payments, total interest, payoff date and full amortization schedule.">
+<style>
+  :root {
+    --bg: #f3f5f7;
+    --card: #ffffff;
+    --text: #16212b;
+    --muted: #68727e;
+    --border: #e3e8ed;
+    --accent: #0f766e;
+    --accent-dark: #0b5e58;
+    --accent-soft: #e0f2f0;
+    --interest: #e8930c;
+    --danger: #c2410c;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 16px rgba(16, 24, 40, .06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: linear-gradient(135deg, #0f766e, #115e59 60%, #134e4a);
+    color: #fff;
+    padding: 2.2rem 1.25rem 2.6rem;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 .35rem; font-size: 1.9rem; letter-spacing: -.02em; }
+  header p { margin: 0; opacity: .85; font-size: 1rem; }
+  main { max-width: 1080px; margin: -1.6rem auto 0; padding: 0 1.25rem 3rem; }
+  .grid { display: grid; grid-template-columns: 380px 1fr; gap: 1.25rem; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.4rem;
+  }
+  .card h2 { margin: 0 0 1rem; font-size: 1.1rem; letter-spacing: -.01em; }
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; color: #374151; }
+  .field .hint { font-size: .78rem; color: var(--muted); margin-top: .25rem; }
+  .input-wrap { position: relative; }
+  .input-wrap .prefix {
+    position: absolute; left: .8rem; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-size: .95rem; pointer-events: none;
+  }
+  .input-wrap .suffix {
+    position: absolute; right: .8rem; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-size: .95rem; pointer-events: none;
+  }
+  input[type="number"], input[type="month"] {
+    width: 100%; padding: .65rem .8rem; font-size: 1rem;
+    border: 1px solid #cbd5dd; border-radius: 9px; background: #fff; color: var(--text);
+  }
+  .input-wrap input { padding-left: 1.9rem; }
+  .input-wrap input.has-suffix { padding-right: 2.2rem; padding-left: .8rem; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .presets { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.1rem; }
+  .presets button {
+    border: 1px solid var(--border); background: #f8fafb; border-radius: 999px;
+    padding: .35rem .85rem; font-size: .82rem; cursor: pointer; color: var(--text);
+  }
+  .presets button:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .presets button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+  .error {
+    display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+    border-radius: 9px; padding: .6rem .8rem; font-size: .85rem; margin-bottom: 1rem;
+  }
+  .error.show { display: block; }
+  .results-top { display: grid; grid-template-columns: 1fr 190px; gap: 1.25rem; align-items: center; }
+  @media (max-width: 560px) { .results-top { grid-template-columns: 1fr; } }
+  .big-payment .label { font-size: .85rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .big-payment .value { font-size: 2.4rem; font-weight: 700; letter-spacing: -.03em; color: var(--accent-dark); margin: .15rem 0 .4rem; }
+  .big-payment .sub { font-size: .9rem; color: var(--muted); }
+  .donut-wrap { text-align: center; }
+  .legend { display: flex; justify-content: center; gap: 1rem; margin-top: .5rem; font-size: .82rem; color: var(--muted); }
+  .legend .swatch { display: inline-block; width: .7rem; height: .7rem; border-radius: 3px; margin-right: .3rem; vertical-align: baseline; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem; margin-top: 1.25rem; }
+  @media (max-width: 560px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+  .stat { background: #f8fafb; border: 1px solid var(--border); border-radius: 10px; padding: .8rem .95rem; }
+  .stat .k { font-size: .76rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .stat .v { font-size: 1.15rem; font-weight: 700; margin-top: .2rem; letter-spacing: -.01em; }
+  .savings {
+    margin-top: 1.1rem; background: var(--accent-soft); border: 1px solid #99d5cf;
+    border-radius: 10px; padding: .8rem 1rem; font-size: .92rem; color: #134e4a; display: none;
+  }
+  .savings.show { display: block; }
+  .savings strong { font-weight: 700; }
+  .schedule-card { margin-top: 1.25rem; }
+  .schedule-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+  .schedule-head h2 { margin: 0; }
+  .controls { display: flex; gap: .5rem; align-items: center; }
+  .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .toggle button {
+    border: 0; background: #fff; padding: .4rem .95rem; font-size: .84rem; cursor: pointer; color: var(--muted);
+  }
+  .toggle button.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .btn {
+    border: 1px solid var(--border); background: #fff; border-radius: 9px;
+    padding: .45rem .9rem; font-size: .84rem; cursor: pointer; color: var(--text);
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .table-wrap { overflow: auto; max-height: 480px; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
+  thead th {
+    position: sticky; top: 0; background: #f1f5f4; color: #374151; text-align: right;
+    padding: .6rem .8rem; font-size: .76rem; text-transform: uppercase; letter-spacing: .04em;
+    border-bottom: 1px solid var(--border); white-space: nowrap; z-index: 1;
+  }
+  thead th:first-child, tbody td:first-child, thead th:nth-child(2), tbody td:nth-child(2) { text-align: left; }
+  tbody td { padding: .5rem .8rem; text-align: right; border-bottom: 1px solid #eef1f4; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: #f8fafb; }
+  .empty-note { padding: 2rem; text-align: center; color: var(--muted); font-size: .9rem; }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem 2.5rem; color: var(--muted); font-size: .82rem; }
+  footer p { margin: .4rem 0; }
+  code { background: #eef1f4; padding: .1rem .35rem; border-radius: 5px; font-size: .8em; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Loan Calculator</h1>
+  <p>Monthly payments, total interest, payoff date &amp; full amortization schedule</p>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card" aria-label="Loan inputs">
+      <h2>Your loan</h2>
+      <div class="presets" id="presets">
+        <button type="button" data-preset="mortgage30" class="active">30-yr mortgage</button>
+        <button type="button" data-preset="mortgage15">15-yr mortgage</button>
+        <button type="button" data-preset="auto">5-yr auto</button>
+        <button type="button" data-preset="personal">3-yr personal</button>
+      </div>
+      <div class="error" id="error"></div>
+      <div class="field">
+        <label for="amount">Loan amount</label>
+        <div class="input-wrap"><span class="prefix">$</span><input type="number" id="amount" min="0" step="100" value="400000"></div>
+      </div>
+      <div class="field">
+        <label for="rate">Annual interest rate</label>
+        <div class="input-wrap"><input type="number" id="rate" class="has-suffix" min="0" max="100" step="0.01" value="6.5"><span class="suffix">%</span></div>
+        <div class="hint">Fixed rate, compounded monthly.</div>
+      </div>
+      <div class="field">
+        <label for="termYears">Loan term</label>
+        <div class="input-wrap"><input type="number" id="termYears" class="has-suffix" min="1" max="50" step="1" value="30"><span class="suffix">yrs</span></div>
+      </div>
+      <div class="field">
+        <label for="startDate">First payment month</label>
+        <input type="month" id="startDate">
+      </div>
+      <div class="field">
+        <label for="extra">Extra payment per month <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <div class="input-wrap"><span class="prefix">$</span><input type="number" id="extra" min="0" step="10" value="0"></div>
+        <div class="hint">Applied straight to principal &mdash; see how much interest you save.</div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Results">
+      <h2>Payment breakdown</h2>
+      <div class="results-top">
+        <div class="big-payment">
+          <div class="label">Monthly payment</div>
+          <div class="value" id="rPayment">&mdash;</div>
+          <div class="sub" id="rPaymentSub"></div>
+        </div>
+        <div class="donut-wrap">
+          <svg id="donut" viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="Principal versus interest">
+            <circle cx="70" cy="70" r="54" fill="none" stroke="#e3e8ed" stroke-width="20"/>
+            <circle id="donutPrincipal" cx="70" cy="70" r="54" fill="none" stroke="#0f766e" stroke-width="20"
+                    transform="rotate(-90 70 70)" stroke-linecap="butt"/>
+            <circle id="donutInterest" cx="70" cy="70" r="54" fill="none" stroke="#e8930c" stroke-width="20"
+                    transform="rotate(-90 70 70)" stroke-linecap="butt"/>
+            <text id="donutLabel" x="70" y="70" text-anchor="middle" dominant-baseline="central"
+                  font-size="15" font-weight="700" fill="#16212b"></text>
+          </svg>
+          <div class="legend">
+            <span><span class="swatch" style="background:#0f766e"></span>Principal</span>
+            <span><span class="swatch" style="background:#e8930c"></span>Interest</span>
+          </div>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="k">Total interest</div><div class="v" id="rInterest">&mdash;</div></div>
+        <div class="stat"><div class="k">Total paid</div><div class="v" id="rTotal">&mdash;</div></div>
+        <div class="stat"><div class="k">Payoff date</div><div class="v" id="rPayoff">&mdash;</div></div>
+        <div class="stat"><div class="k">Payments</div><div class="v" id="rCount">&mdash;</div></div>
+        <div class="stat"><div class="k">Interest share</div><div class="v" id="rShare">&mdash;</div></div>
+        <div class="stat"><div class="k">Loan amount</div><div class="v" id="rPrincipal">&mdash;</div></div>
+      </div>
+      <div class="savings" id="savings"></div>
+    </section>
+  </div>
+
+  <section class="card schedule-card" aria-label="Amortization schedule">
+    <div class="schedule-head">
+      <h2>Amortization schedule</h2>
+      <div class="controls">
+        <div class="toggle" role="group" aria-label="Schedule granularity">
+          <button type="button" id="viewMonthly" class="active">Monthly</button>
+          <button type="button" id="viewYearly">Yearly</button>
+        </div>
+        <button type="button" class="btn" id="csvBtn">Download CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="scheduleTable">
+        <thead><tr>
+          <th>#</th><th>Date</th><th>Payment</th><th>Principal</th><th>Interest</th><th>Extra</th><th>Balance</th>
+        </tr></thead>
+        <tbody id="scheduleBody"></tbody>
+      </table>
+      <div class="empty-note" id="emptyNote">Enter your loan details to see the schedule.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>Uses the standard amortization formula <code>M = P &middot; r(1+r)<sup>n</sup> / ((1+r)<sup>n</sup> &minus; 1)</code>, with extra payments applied directly to principal. Figures are estimates for planning &mdash; your lender's exact numbers may differ slightly due to rounding and fee conventions.</p>
+  <p>A single-file app &mdash; no trackers, no sign-in, works offline once loaded.</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  var monthFmt = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" });
+
+  var PRESETS = {
+    mortgage30: { rate: 6.5,  years: 30 },
+    mortgage15: { rate: 6.0,  years: 15 },
+    auto:       { rate: 7.0,  years: 5  },
+    personal:   { rate: 11.0, years: 3  }
+  };
+
+  var view = "monthly";
+  var lastRows = [];
+
+  function num(id, fallback) {
+    var v = parseFloat($(id).value);
+    return isFinite(v) ? v : fallback;
+  }
+
+  function baseMonthlyPayment(principal, monthlyRate, n) {
+    if (monthlyRate <= 0) return principal / n;
+    var f = Math.pow(1 + monthlyRate, n);
+    return principal * monthlyRate * f / (f - 1);
+  }
+
+  // Build the amortization schedule. Returns { rows, totalInterest, totalPaid }.
+  function buildSchedule(principal, annualRate, years, extraMonthly, startDate) {
+    var r = annualRate / 100 / 12;
+    var n = Math.max(1, Math.round(years * 12));
+    var base = baseMonthlyPayment(principal, r, n);
+    var cents = function (x) { return Math.round(x * 100) / 100; };
+
+    var bal = cents(principal);
+    var rows = [];
+    var totalInterest = 0, totalPaid = 0, m = 0;
+
+    while (bal > 0 && m < n * 4 + 120) {
+      m++;
+      var interest = cents(bal * r);
+      var princ = cents(base - interest);
+      var xtra = cents(Math.max(0, extraMonthly));
+
+      if (princ + xtra >= bal) {          // final (possibly partial) payment
+        if (princ >= bal) { princ = bal; xtra = 0; }
+        else { xtra = cents(bal - princ); }
+        bal = 0;
+      } else {
+        bal = cents(bal - princ - xtra);
+      }
+
+      var paid = cents(princ + interest + xtra);
+      totalInterest = cents(totalInterest + interest);
+      totalPaid = cents(totalPaid + paid);
+      var d = new Date(startDate.getFullYear(), startDate.getMonth() + m - 1, 1);
+      rows.push({ n: m, date: d, paid: paid, princ: princ, interest: interest, xtra: xtra, bal: bal });
+    }
+    return { rows: rows, totalInterest: totalInterest, totalPaid: totalPaid, base: base };
+  }
+
+  function showError(msg) {
+    var el = $("error");
+    if (msg) { el.textContent = msg; el.classList.add("show"); }
+    else { el.classList.remove("show"); }
+  }
+
+  function renderDonut(principal, totalInterest) {
+    var C = 2 * Math.PI * 54;
+    var total = principal + totalInterest;
+    var pFrac = total > 0 ? principal / total : 1;
+    var iFrac = total > 0 ? totalInterest / total : 0;
+    var pLen = Math.max(0, pFrac * C - 1.5);
+    var iLen = Math.max(0, iFrac * C - 1.5);
+    var dp = $("donutPrincipal"), di = $("donutInterest");
+    dp.setAttribute("stroke-dasharray", pLen.toFixed(1) + " " + C.toFixed(1));
+    dp.setAttribute("stroke-dashoffset", "0");
+    di.setAttribute("stroke-dasharray", iLen.toFixed(1) + " " + C.toFixed(1));
+    di.setAttribute("stroke-dashoffset", (-pLen).toFixed(1));
+    $("donutLabel").textContent = total > 0 ? Math.round(iFrac * 100) + "%" : "";
+  }
+
+  function rowHtml(r, yearly) {
+    var label = yearly ? ("Year " + r.n) : ("#" + r.n);
+    var dateStr = yearly ? String(r.year) : monthFmt.format(r.date);
+    return "<tr><td>" + label + "</td><td>" + dateStr + "</td><td>" + usd.format(r.paid) +
+      "</td><td>" + usd.format(r.princ) + "</td><td>" + usd.format(r.interest) +
+      "</td><td>" + usd.format(r.xtra) + "</td><td>" + usd.format(r.bal) + "</td></tr>";
+  }
+
+  function aggregateYearly(rows) {
+    var years = [], cur = null;
+    rows.forEach(function (r) {
+      var y = r.date.getFullYear();
+      if (!cur || cur.year !== y) { cur = { n: years.length + 1, year: y, paid: 0, princ: 0, interest: 0, xtra: 0, bal: 0 }; years.push(cur); }
+      cur.paid += r.paid; cur.princ += r.princ; cur.interest += r.interest; cur.xtra += r.xtra;
+      cur.bal = r.bal;
+    });
+    var rnd = function (x) { return Math.round(x * 100) / 100; };
+    years.forEach(function (y) { y.paid = rnd(y.paid); y.princ = rnd(y.princ); y.interest = rnd(y.interest); y.xtra = rnd(y.xtra); });
+    return years;
+  }
+
+  function renderTable() {
+    var body = $("scheduleBody");
+    var data = view === "yearly" ? aggregateYearly(lastRows) : lastRows;
+    $("emptyNote").style.display = data.length ? "none" : "block";
+    $("scheduleTable").style.display = data.length ? "" : "none";
+    body.innerHTML = data.map(function (r) { return rowHtml(r, view === "yearly"); }).join("");
+  }
+
+  function calculate() {
+    var principal = num("amount", NaN);
+    var annualRate = num("rate", NaN);
+    var years = num("termYears", NaN);
+    var extra = Math.max(0, num("extra", 0));
+
+    if (!(principal > 0))      { showError("Please enter a loan amount greater than zero."); return; }
+    if (!(annualRate >= 0) || annualRate > 100) { showError("Please enter an annual rate between 0 and 100."); return; }
+    if (!(years >= 1) || years > 50)           { showError("Please enter a term between 1 and 50 years."); return; }
+    showError(null);
+
+    var startVal = $("startDate").value;
+    var start = startVal
+      ? new Date(parseInt(startVal.slice(0, 4), 10), parseInt(startVal.slice(5, 7), 10) - 1, 1)
+      : new Date();
+    start.setDate(1);
+
+    var s = buildSchedule(principal, annualRate, years, extra, start);
+    lastRows = s.rows;
+
+    var monthlyOut = s.base + (extra > 0 ? extra : 0);
+    $("rPayment").textContent = usd.format(s.base);
+    $("rPaymentSub").textContent = extra > 0
+      ? "plus " + usd.format(extra) + " extra = " + usd.format(monthlyOut) + " out the door"
+      : "principal & interest";
+    $("rInterest").textContent = usd.format(s.totalInterest);
+    $("rTotal").textContent = usd.format(s.totalPaid);
+    $("rPrincipal").textContent = usd.format(principal);
+    $("rCount").textContent = s.rows.length + (s.rows.length === 1 ? " payment" : " payments");
+    var share = s.totalPaid > 0 ? (s.totalInterest / s.totalPaid) * 100 : 0;
+    $("rShare").textContent = share.toFixed(1) + "%";
+
+    var last = s.rows[s.rows.length - 1];
+    $("rPayoff").textContent = last ? monthFmt.format(last.date) : "—";
+
+    renderDonut(principal, s.totalInterest);
+
+    var sv = $("savings");
+    if (extra > 0) {
+      var base0 = buildSchedule(principal, annualRate, years, 0, start);
+      var saved = Math.max(0, base0.totalInterest - s.totalInterest);
+      var early = base0.rows.length - s.rows.length;
+      var bits = [];
+      if (saved > 0.005) bits.push("save <strong>" + usd.format(saved) + "</strong> in interest");
+      if (early > 0) bits.push("pay off <strong>" + early + " month" + (early === 1 ? "" : "s") + " early</strong>");
+      if (bits.length) {
+        sv.innerHTML = "That extra " + usd.format(extra) + "/mo would " + bits.join(" and ") + ".";
+        sv.classList.add("show");
+      } else { sv.classList.remove("show"); }
+    } else { sv.classList.remove("show"); }
+
+    renderTable();
+  }
+
+  function downloadCsv() {
+    if (!lastRows.length) return;
+    var lines = ["Payment #,Date,Payment,Principal,Interest,Extra,Balance"];
+    lastRows.forEach(function (r) {
+      var d = r.date.getFullYear() + "-" + String(r.date.getMonth() + 1).padStart(2, "0") + "-01";
+      lines.push([r.n, d, r.paid.toFixed(2), r.princ.toFixed(2), r.interest.toFixed(2), r.xtra.toFixed(2), r.bal.toFixed(2)].join(","));
+    });
+    var blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "amortization-schedule.csv";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  // Wire up
+  ["amount", "rate", "termYears", "extra", "startDate"].forEach(function (id) {
+    $(id).addEventListener("input", calculate);
+  });
+
+  $("presets").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-preset]");
+    if (!b) return;
+    var p = PRESETS[b.getAttribute("data-preset")];
+    $("rate").value = p.rate;
+    $("termYears").value = p.years;
+    Array.prototype.forEach.call($("presets").children, function (c) { c.classList.remove("active"); });
+    b.classList.add("active");
+    calculate();
+  });
+
+  $("viewMonthly").addEventListener("click", function () {
+    view = "monthly";
+    $("viewMonthly").classList.add("active"); $("viewYearly").classList.remove("active");
+    renderTable();
+  });
+  $("viewYearly").addEventListener("click", function () {
+    view = "yearly";
+    $("viewYearly").classList.add("active"); $("viewMonthly").classList.remove("active");
+    renderTable();
+  });
+  $("csvBtn").addEventListener("click", downloadCsv);
+
+  // Default first-payment month = current month
+  (function () {
+    var now = new Date();
+    $("startDate").value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+  })();
+
+  calculate();
+})();
+</script>
+</body>
+</html>
