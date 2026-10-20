@@ -140,6 +140,10 @@
   <div class="grid">
     <section class="card" aria-label="Loan inputs">
       <h2>Your loan</h2>
+      <div class="toggle" id="modeToggle" role="group" aria-label="Calculator mode" style="margin-bottom:1.1rem">
+        <button type="button" id="modeNew" class="active">New loan</button>
+        <button type="button" id="modePayoff">Existing loan</button>
+      </div>
       <div class="presets" id="presets">
         <button type="button" data-preset="mortgage30" class="active">30-yr mortgage</button>
         <button type="button" data-preset="mortgage15">15-yr mortgage</button>
@@ -147,7 +151,7 @@
         <button type="button" data-preset="personal">3-yr personal</button>
       </div>
       <div class="error" id="error"></div>
-      <div class="field">
+      <div class="field" id="fldAmount">
         <label for="amount">Loan amount</label>
         <div class="input-wrap"><span class="prefix">$</span><input type="number" id="amount" min="0" step="100" value="400000"></div>
       </div>
@@ -156,12 +160,23 @@
         <div class="input-wrap"><input type="number" id="rate" class="has-suffix" min="0" max="100" step="0.01" value="6.5"><span class="suffix">%</span></div>
         <div class="hint">Fixed rate, compounded monthly.</div>
       </div>
-      <div class="field">
+      <div class="field" id="fldTerm">
         <label for="termYears">Loan term</label>
         <div class="input-wrap"><input type="number" id="termYears" class="has-suffix" min="1" max="50" step="1" value="30"><span class="suffix">yrs</span></div>
       </div>
+      <div id="payoffFields" style="display:none">
+        <div class="field">
+          <label for="balance">Remaining balance</label>
+          <div class="input-wrap"><span class="prefix">$</span><input type="number" id="balance" min="0" step="100" value="300000"></div>
+        </div>
+        <div class="field">
+          <label for="payPayment">Current monthly payment</label>
+          <div class="input-wrap"><span class="prefix">$</span><input type="number" id="payPayment" min="0" step="10" value="2000"></div>
+          <div class="hint">Principal &amp; interest — what you pay the lender each month.</div>
+        </div>
+      </div>
       <div class="field">
-        <label for="startDate">First payment month</label>
+        <label for="startDate" id="startDateLabel">First payment month</label>
         <input type="month" id="startDate">
       </div>
       <div class="field">
@@ -196,12 +211,12 @@
         </div>
       </div>
       <div class="stat-grid">
-        <div class="stat"><div class="k">Total interest</div><div class="v" id="rInterest">&mdash;</div></div>
-        <div class="stat"><div class="k">Total paid</div><div class="v" id="rTotal">&mdash;</div></div>
+        <div class="stat"><div class="k" id="rInterestKey">Total interest</div><div class="v" id="rInterest">&mdash;</div></div>
+        <div class="stat"><div class="k" id="rTotalKey">Total paid</div><div class="v" id="rTotal">&mdash;</div></div>
         <div class="stat"><div class="k">Payoff date</div><div class="v" id="rPayoff">&mdash;</div></div>
         <div class="stat"><div class="k">Payments</div><div class="v" id="rCount">&mdash;</div></div>
         <div class="stat"><div class="k">Interest share</div><div class="v" id="rShare">&mdash;</div></div>
-        <div class="stat"><div class="k">Loan amount</div><div class="v" id="rPrincipal">&mdash;</div></div>
+        <div class="stat"><div class="k" id="rPrincipalKey">Loan amount</div><div class="v" id="rPrincipal">&mdash;</div></div>
       </div>
       <div class="savings" id="savings"></div>
     </section>
@@ -252,6 +267,7 @@
 
   var view = "monthly";
   var lastRows = [];
+  var mode = "new";
 
   function num(id, fallback) {
     var v = parseFloat($(id).value);
@@ -264,21 +280,21 @@
     return principal * monthlyRate * f / (f - 1);
   }
 
-  // Build the amortization schedule. Returns { rows, totalInterest, totalPaid }.
-  function buildSchedule(principal, annualRate, years, extraMonthly, startDate) {
-    var r = annualRate / 100 / 12;
-    var n = Math.max(1, Math.round(years * 12));
-    var base = baseMonthlyPayment(principal, r, n);
+  // Core engine: amortize a balance with a fixed monthly payment.
+  // Shared by both modes — new loans pass the computed payment, payoff mode
+  // passes the user's actual payment. Returns { rows, totalInterest, totalPaid }.
+  function amortize(balance, monthlyRate, payment, extraMonthly, startDate, maxMonths) {
     var cents = function (x) { return Math.round(x * 100) / 100; };
 
-    var bal = cents(principal);
+    var bal = cents(balance);
     var rows = [];
     var totalInterest = 0, totalPaid = 0, m = 0;
+    var cap = maxMonths || 1200;
 
-    while (bal > 0 && m < n * 4 + 120) {
+    while (bal > 0 && m < cap) {
       m++;
-      var interest = cents(bal * r);
-      var princ = cents(base - interest);
+      var interest = cents(bal * monthlyRate);
+      var princ = cents(payment - interest);
       var xtra = cents(Math.max(0, extraMonthly));
 
       if (princ + xtra >= bal) {          // final (possibly partial) payment
@@ -295,7 +311,17 @@
       var d = new Date(startDate.getFullYear(), startDate.getMonth() + m - 1, 1);
       rows.push({ n: m, date: d, paid: paid, princ: princ, interest: interest, xtra: xtra, bal: bal });
     }
-    return { rows: rows, totalInterest: totalInterest, totalPaid: totalPaid, base: base };
+    return { rows: rows, totalInterest: totalInterest, totalPaid: totalPaid };
+  }
+
+  // Build the amortization schedule for a new loan. Returns { rows, totalInterest, totalPaid, base }.
+  function buildSchedule(principal, annualRate, years, extraMonthly, startDate) {
+    var r = annualRate / 100 / 12;
+    var n = Math.max(1, Math.round(years * 12));
+    var base = baseMonthlyPayment(principal, r, n);
+    var s = amortize(principal, r, base, extraMonthly, startDate, n * 4 + 120);
+    s.base = base;
+    return s;
   }
 
   function showError(msg) {
@@ -349,15 +375,10 @@
   }
 
   function calculate() {
-    var principal = num("amount", NaN);
     var annualRate = num("rate", NaN);
-    var years = num("termYears", NaN);
     var extra = Math.max(0, num("extra", 0));
 
-    if (!(principal > 0))      { showError("Please enter a loan amount greater than zero."); return; }
     if (!(annualRate >= 0) || annualRate > 100) { showError("Please enter an annual rate between 0 and 100."); return; }
-    if (!(years >= 1) || years > 50)           { showError("Please enter a term between 1 and 50 years."); return; }
-    showError(null);
 
     var startVal = $("startDate").value;
     var start = startVal
@@ -365,7 +386,35 @@
       : new Date();
     start.setDate(1);
 
-    var s = buildSchedule(principal, annualRate, years, extra, start);
+    var r = annualRate / 100 / 12;
+    var s, displayPrincipal, payCap = 0;
+
+    if (mode === "new") {
+      var principal = num("amount", NaN);
+      var years = num("termYears", NaN);
+      if (!(principal > 0))      { showError("Please enter a loan amount greater than zero."); return; }
+      if (!(years >= 1) || years > 50)           { showError("Please enter a term between 1 and 50 years."); return; }
+      s = buildSchedule(principal, annualRate, years, extra, start);
+      displayPrincipal = principal;
+    } else {
+      var balance = num("balance", NaN);
+      var pay = num("payPayment", NaN);
+      if (!(balance > 0)) { showError("Please enter a remaining balance greater than zero."); return; }
+      if (!(pay > 0))     { showError("Please enter your current monthly payment."); return; }
+      if (r > 0 && pay <= balance * r) {
+        showError("That payment doesn't cover the monthly interest (" + usd.format(balance * r) + ") — the balance would never go down.");
+        return;
+      }
+      var est = r > 0 ? -Math.log(1 - r * balance / pay) / Math.log(1 + r) : balance / pay;
+      payCap = Math.min(120000, Math.ceil(est * 2) + 120);
+      var res = amortize(balance, r, pay, extra, start, payCap);
+      if (res.rows.length >= payCap) { showError("That payment is so close to interest-only that payoff is effectively out of reach."); return; }
+      s = res;
+      s.base = pay;
+      displayPrincipal = balance;
+    }
+    showError(null);
+
     lastRows = s.rows;
 
     var monthlyOut = s.base + (extra > 0 ? extra : 0);
@@ -375,19 +424,25 @@
       : "principal & interest";
     $("rInterest").textContent = usd.format(s.totalInterest);
     $("rTotal").textContent = usd.format(s.totalPaid);
-    $("rPrincipal").textContent = usd.format(principal);
-    $("rCount").textContent = s.rows.length + (s.rows.length === 1 ? " payment" : " payments");
+    $("rPrincipal").textContent = usd.format(displayPrincipal);
+    $("rInterestKey").textContent = mode === "new" ? "Total interest" : "Interest left";
+    $("rTotalKey").textContent = mode === "new" ? "Total paid" : "Total remaining";
+    $("rPrincipalKey").textContent = mode === "new" ? "Loan amount" : "Balance owed";
+    var countSuffix = s.rows.length === 1 ? " payment" : " payments";
+    $("rCount").textContent = s.rows.length + countSuffix + (mode === "payoff" ? " left" : "");
     var share = s.totalPaid > 0 ? (s.totalInterest / s.totalPaid) * 100 : 0;
     $("rShare").textContent = share.toFixed(1) + "%";
 
     var last = s.rows[s.rows.length - 1];
     $("rPayoff").textContent = last ? monthFmt.format(last.date) : "—";
 
-    renderDonut(principal, s.totalInterest);
+    renderDonut(displayPrincipal, s.totalInterest);
 
     var sv = $("savings");
     if (extra > 0) {
-      var base0 = buildSchedule(principal, annualRate, years, 0, start);
+      var base0 = mode === "new"
+        ? buildSchedule(displayPrincipal, annualRate, num("termYears", NaN), 0, start)
+        : amortize(displayPrincipal, r, s.base, 0, start, payCap);
       var saved = Math.max(0, base0.totalInterest - s.totalInterest);
       var early = base0.rows.length - s.rows.length;
       var bits = [];
@@ -419,9 +474,23 @@
   }
 
   // Wire up
-  ["amount", "rate", "termYears", "extra", "startDate"].forEach(function (id) {
+  ["amount", "rate", "termYears", "balance", "payPayment", "extra", "startDate"].forEach(function (id) {
     $(id).addEventListener("input", calculate);
   });
+
+  function setMode(next) {
+    mode = next;
+    $("modeNew").classList.toggle("active", next === "new");
+    $("modePayoff").classList.toggle("active", next === "payoff");
+    $("fldAmount").style.display = next === "new" ? "" : "none";
+    $("fldTerm").style.display = next === "new" ? "" : "none";
+    $("payoffFields").style.display = next === "payoff" ? "" : "none";
+    $("presets").style.display = next === "new" ? "" : "none";
+    $("startDateLabel").textContent = next === "new" ? "First payment month" : "Next payment month";
+    calculate();
+  }
+  $("modeNew").addEventListener("click", function () { setMode("new"); });
+  $("modePayoff").addEventListener("click", function () { setMode("payoff"); });
 
   $("presets").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-preset]");

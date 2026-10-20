@@ -15,6 +15,8 @@ works offline once loaded.
 
 ## Features
 
+- Two modes: **New loan** (amount + rate + term → payment) and **Existing loan**
+  (remaining balance + current payment → payments left and payoff date)
 - Monthly payment from the standard amortization formula
 - Total interest / total paid / payoff date
 - Principal-vs-interest donut chart
